@@ -98,4 +98,10 @@ ENV/
 /site
 
 # mypy
-.mypy_cache/
+.mypy_cache
+
+scs_dask/linear_operators.py
+scs_dask/pcg.py
+scs_dask/pcg_test.py
+scs_dask/utils.py
+*cg_dev.ipynb 
