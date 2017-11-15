@@ -3,8 +3,8 @@
 import dask
 # import dask.array as da
 
-def cg(A, b, tol=1e-8, maxiters=500, verbose=0, x0=None, preconditioner=None,
-	   client=None):
+
+def cg(A, b, tol=1e-8, maxiters=500, verbose=0, x0=None, preconditioner=None):
     """ Conjugate gradient
 
         Parameters
@@ -35,10 +35,8 @@ def cg(A, b, tol=1e-8, maxiters=500, verbose=0, x0=None, preconditioner=None,
             M(Ax - b) = 0
     """
     print_iter = max(1, maxiter / 10**verbose)
-    if client is None:
-    	client = dask
 
-    A, b, M = client.persist(A, b, preconditioner)
+    A, b, M = dask.persist(A, b, preconditioner)
 
     if x0 is None:
         r = 1 * b
@@ -51,8 +49,8 @@ def cg(A, b, tol=1e-8, maxiters=500, verbose=0, x0=None, preconditioner=None,
     p = Mr
     resnrm2 = r.dot(Mr)
 
-    x, r, p, resnrm2 = client.persist(x, r, p, resnrm2)
-    (resnrm2,) = client.compute(resnrm2)
+    x, r, p, resnrm2 = dask.persist(x, r, p, resnrm2)
+    (resnrm2,) = dask.compute(resnrm2)
     if resnrm2**0.5 < tol:
         return x, 0, resnrm2**0.5
 
@@ -66,8 +64,8 @@ def cg(A, b, tol=1e-8, maxiters=500, verbose=0, x0=None, preconditioner=None,
         Mr = r if M is None else M.dot(r)
         resnrm2 = r.dot(Mr)
 
-        x, r, resnrm2 = client.persist(x, r, resnrm2)
-        (resnrm2,) = client.compute(resnrm2)
+        x, r, resnrm2 = dask.persist(x, r, resnrm2)
+        (resnrm2,) = dask.compute(resnrm2)
 
         if resnrm2**0.5 < tol:
             break
@@ -75,8 +73,8 @@ def cg(A, b, tol=1e-8, maxiters=500, verbose=0, x0=None, preconditioner=None,
             print("ITER: {:5}\t||Ax -  b||_2: {}".format(k + 1, resnrm2**0.5))
 
         p = Mr + (resnrm2 / oresnrm2) * op
-        x, r, resnrm2, p= client.persist(x, r, resnrm2, p)
+        x, r, resnrm2, p= dask.persist(x, r, resnrm2, p)
 
-        (p,) = client.persist(p)
+        (p,) = dask.persist(p)
 
     return x, k + 1, resnrm2**0.5
