@@ -77,7 +77,10 @@ def cg_init_dsk(A, b, state0, x_init=None):
     for i in range(vblocks):
         dsk[(x0, i)] = (init_x, (x0_vec.name, i))
         dsk[(r0, i)] = (operator.sub,
-                (da.core.dotmany, [(A.name, i, j) for j in range(hblocks)], [(x0, j) for j in range(hblocks)]),
+                (
+                        da.core.dotmany,
+                        [(A.name, i, j) for j in range(hblocks)],
+                        [(x0, j) for j in range(hblocks)]),
                 (b.name, i))
         dsk[(p0, i)] = (init_p, (r0, i))
     return dsk
@@ -92,14 +95,22 @@ def cg_iterate_dsk(A, state0, state1):
     dsk = dict()
     vblocks, hblocks = A.numblocks
     for i in range(vblocks):
-        dsk[(Ap, i)] = (da.core.dotmany, [(A.name, i, j) for j in range(hblocks)], [(p0, j) for j in range(hblocks)])
-    dsk[gamma0] = (da.core.dotmany, [(r0, i) for i in range(vblocks)], [(r0, i) for i in range(vblocks)])
-    dsk[pAp] = (da.core.dotmany, [(p0, i) for i in range(vblocks)], [(Ap, i) for i in range(vblocks)])
+        dsk[(Ap, i)] = (da.core.dotmany,
+                        [(A.name, i, j) for j in range(hblocks)],
+                        [(p0, j) for j in range(hblocks)])
+    dsk[gamma0] = (da.core.dotmany,
+                   [(r0, i) for i in range(vblocks)],
+                   [(r0, i) for i in range(vblocks)])
+    dsk[pAp] = (da.core.dotmany,
+                [(p0, i) for i in range(vblocks)],
+                [(Ap, i) for i in range(vblocks)])
     for i in range(vblocks):
         dsk[(x1, i)] = (update_x, (x0, i), gamma0, pAp, (p0, i))
         dsk[(r1, i)] = (update_r, (r0, i), gamma0, pAp, (Ap, i))
         dsk[(p1, i)] = (update_p, (p0, i), gamma0, gamma1, (r1, i))
-    dsk[gamma1] = (da.core.dotmany, [(r1, i) for i in range(vblocks)], [(r1, i) for i in range(vblocks)])
+    dsk[gamma1] = (da.core.dotmany,
+                   [(r1, i) for i in range(vblocks)],
+                   [(r1, i) for i in range(vblocks)])
     return dsk
 
 # def cg_calcs_proto(shape, chunks, dtype, dsk, key, optimize=False):
