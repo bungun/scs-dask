@@ -2,11 +2,11 @@ import functools
 import numpy as np
 import dask
 import dask.array as da
+import unittest
 
 from scs_dask.linalg import linear_operator as linop
 from scs_dask.linalg import atoms2
 
-import unittest
 
 def graph_dot_matches_expected(matrixlike, vec, expected, transpose=False):
     tol = 1e-15 * (1 + expected.size**0.5)
