@@ -4,7 +4,9 @@ import functools
 import dask
 import dask.array as da
 
+import scs_dask.linalg.linear_operator as linop
 import scs_dask.linalg.atoms2 as atoms2
+
 
 def iter_options(graph_iters=1, verbose=0, print_iters=0, time_iters=0):
     graph_iters = max(1, int(graph_iters))
@@ -268,5 +270,7 @@ def cg_graph(A, b, preconditioner=None, x_init=None, tol=1e-5, maxiter=500, **op
 def cgls(A, b, rho, **options):
     b_hat = atoms2.dot(A, b, transpose=True)
     A_hat = linop.DLORegularizedGram(A, regularization=rho, transpose=False)
-    return cg_graph(A_hat, b_hat, **options)
+    x, _, iters = cg_graph(A_hat, b_hat, **options)
+    res = da.linalg.norm(atoms2.dot(A, x) - b).compute()
+    return x, res, iters
 
