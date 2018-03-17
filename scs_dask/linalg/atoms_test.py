@@ -114,7 +114,7 @@ def test_diag_gram_ndarray():
     logdim = np.log(diff.size)
     assert np.linalg.norm(diff) < 1e-15 * (logdim + np.linalg.norm(dATA))
 
-    dAAT = atoms.diag_gram(A, tranpose=True)
+    dAAT = atoms.diag_gram(A, transpose=True)
     diff = dAAT- np.diag(np.dot(A, A.T))
     logdim = np.log(diff.size)
     assert np.linalg.norm(diff) < 1e-15 * (logdim + np.linalg.norm(dAAT))
@@ -122,28 +122,24 @@ def test_diag_gram_ndarray():
 def test_diag_gram_dask_array():
     m, n = 1000, 500
     mc, nc = 100, 50
-    A = dask.random.random(shape=(m, n), chunks=(mc, nc))
+    A = np.random.random((m, n))
+    Ad = da.from_array(A, chunks=(mc, nc))
 
-    dATA = atoms.diag_gram(A)
-    diff = dATA - da.diag(da.dot(A.T, A))
-    diff, dATA = dask.compute(diff, dATA)
-    logdim = np.log(diff.size)
-    assert np.linalg.norm(diff) < 1e-15 * (logdim + np.linalg.norm(dATA))
+    def dask_matches_numpy(A, transpose=False, regularization=0):
+        options = dict(transpose=transpose)
+        if regularization > 0:
+            options['regularization'] = regularization
+        chunks = (nc, mc) if transpose else (mc, nc)
+        Ad = da.from_array(A, chunks=chunks)
+        diagAA = atoms.diag_gram(A, **options)
+        diagAA_dsk = atoms.diag_gram(Ad, **options).compute()
+        diff = diagAA - diagAA_dsk
+        nrm_diff = np.linalg.norm(diff)
+        tol = 1e-14 * (np.log(diff.size) + np.linalg.norm(diagAA))
+        return nrm_diff < tol, '{} < {}'.format(nrm_diff, tol)
 
-    dAAT = atoms.diag_gram(A, tranpose=True)
-    diff = dAAT - da.diag(da.dot(A, A.T))
-    diff, dAAT = dask.compute(diff, dAAT)
-    logdim = np.log(diff.size)
-    assert np.linalg.norm(diff) < 1e-15 * (logdim + np.linalg.norm(dAAT))
-
-    dATA = diag_gram(A, regularization=1)
-    diff = dATA - (1 + da.diag(da.dot(A.T, A)))
-    diff, dATA = dask.compute(diff, dATA)
-    logdim = np.log(diff.size)
-    assert np.linalg.norm(diff) < 1e-15 * (logdim + np.linalg.norm(dATA))
-
-    dATA = diag_gram(A, regularization=1)
-    diff = dATA - (1 + da.diag(da.dot(A.T, A)))
-    diff, dATA = dask.compute(diff, dATA)
-    logdim = np.log(diff.size)
-    assert np.linalg.norm(diff) < 1e-15 * (logdim + np.linalg.norm(dATA))
+    reg = np.random.uniform(0.5, 1.5)
+    assert dask_matches_numpy(A, transpose=False)
+    assert dask_matches_numpy(A, transpose=True)
+    assert dask_matches_numpy(A, transpose=False, regularization=reg)
+    assert dask_matches_numpy(A, transpose=True, regularization=reg)
