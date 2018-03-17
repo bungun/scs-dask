@@ -1,9 +1,9 @@
 import numpy as np
 import dask
 import dask.array as da
-from scs_dask import cones
+from . import cones
 
-def test_cone(K, x):
+def dask_matches_numpy(K, x):
     tol_cone = 10**isinstance(K, cones.PositiveSemidefiniteCone)
     xp = cones.project_cone(K, x)
     xd = da.from_array(x, chunks=x.size/2)
@@ -16,8 +16,8 @@ def test_zero_cone():
     m = 10
     K, x = cones.ZeroCone(m), np.random.normal(0, 1, m)
     Kstar = cones.ZeroDualCone(m)
-    assert test_cone(K, x)
-    assert test_cone(Kstar, x)
+    assert dask_matches_numpy(K, x)
+    assert dask_matches_numpy(Kstar, x)
     assert sum(cones.project_cone(K, x)) == 0
     assert sum(cones.project_cone(Kstar, x) - x) == 0
 
@@ -25,8 +25,8 @@ def test_nonnegative_cone():
     m = 10
     K, x = cones.NonnegativeCone(m), np.random.normal(0, 1, m)
     Kstar = cones.NonnegativeDualCone(m)
-    assert test_cone(K, x)
-    assert test_cone(Kstar, x)
+    assert dask_matches_numpy(K, x)
+    assert dask_matches_numpy(Kstar, x)
 
 def test_SOC():
     m = 10
@@ -43,8 +43,8 @@ def test_SOC():
     assert sum(xpp) == 0
 
     # dask matches numpy
-    assert test_cone(K, x)
-    assert test_cone(Kstar, x)
+    assert dask_matches_numpy(K, x)
+    assert dask_matches_numpy(Kstar, x)
 
 def test_PSD_cone():
     m = 10
@@ -56,8 +56,8 @@ def test_PSD_cone():
     x = X.reshape(-1)
     projx = cones.project_cone(K, x)
     cones.project_cone(K, da.from_array(x, chunks=mc)).compute() - projx
-    assert test_cone(K, x)
-    assert test_cone(Kstar, x)
+    assert dask_matches_numpy(K, x)
+    assert dask_matches_numpy(Kstar, x)
 
 def test_exp_cone():
     # primal exp cone
@@ -113,8 +113,8 @@ def test_exp_cone():
     projx = cones.project_cone(K, x)
     PX = projx.reshape((-1, 3))
     assert all([cones.v_in_Kexp(PX[i, :]) for i in range(m)])
-    assert test_cone(K, x)
-    assert test_cone(Kstar, x)
+    assert dask_matches_numpy(K, x)
+    assert dask_matches_numpy(Kstar, x)
 
 def test_pow_cone():
     m = 1
@@ -128,5 +128,5 @@ def test_pow_cone():
     def in_cone(v, p):
         return cones.v_in_Ka(v, p) if p > 0 else cones.negv_in_Ka_star(-v, -p)
     assert all([in_cone(PX[i, :], p[i]) for i in range(m)])
-    assert test_cone(K, x)
-    assert test_cone(Kstar, x)
+    assert dask_matches_numpy(K, x)
+    assert dask_matches_numpy(Kstar, x)
