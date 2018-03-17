@@ -1,4 +1,3 @@
-import operator
 import functools
 import numpy as np
 import dask
@@ -320,7 +319,7 @@ def project_cone(K, x):
 @dispatch(ExponentialCone, da.Array)
 def project_cone(K, x):
     assert x.size == 3 * K.dim, 'input dimension compatible'
-    return da.map_blocks(proj_exp_dual_cone, x.rechunk(3)).rechunk(chunks=x.chunks)
+    return da.map_blocks(proj_exp_cone, x.rechunk(3), dtype=x.dtype).rechunk(chunks=x.chunks)
 
 @dispatch(ExponentialDualCone, np.ndarray)
 def project_cone(K, x):
@@ -330,7 +329,7 @@ def project_cone(K, x):
 @dispatch(ExponentialDualCone, da.Array)
 def project_cone(K, x):
     assert x.size == 3 * K.dim, 'input dimension compatible'
-    return da.map_blocks(proj_exp_dual_cone, x.rechunk(3)).rechunk(chunks=x.chunks)
+    return da.map_blocks(proj_exp_dual_cone, x.rechunk(3), dtype=x.dtype).rechunk(chunks=x.chunks)
 
 def v_in_Ka(v, a):
     return (v[0] >= 0
