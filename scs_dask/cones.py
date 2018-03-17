@@ -74,3 +74,10 @@ DUAL_CONES.update({dc: pc for (pc, dc) in DUAL_CONES.items()})
 def K_to_Kstar(K):
     return DUAL_CONES[type(K)](K.dim)
 
+@dispatch(ZeroCone, (np.ndarray, da.Array))
+def project_cone(K, x):
+    return 0 * x
+
+@dispatch(ZeroDualCone, (np.ndarray, da.Array))
+def project_cone(K, x):
+    return 1 * x
