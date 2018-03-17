@@ -90,3 +90,30 @@ def project_cone(K, x):
 def project_cone(K, x):
     return da.maximum(x, 0)
 
+@dispatch(SecondOrderCone, np.ndarray)
+def project_cone(K, x):
+    s, v = x[0, ...], x[1:, ...]
+    norm_v = np.linalg.norm(v)
+    if norm_v <= -s:
+        return 0 * x
+    elif norm_v <= s:
+        return 1 * x
+    else:
+        return 0.5*(1 + s/norm_v) * np.hstack(([norm_v], v))
+
+@dispatch(SecondOrderCone, da.Array)
+def project_cone(K, x):
+    s = x[0].compute()
+    v = x[1:]
+    norm_v = da.linalg.norm(v).compute()
+
+    if norm_v <= -s:
+        projx = 0 * x
+    elif norm_v <= s:
+        projx = 1 * x
+    else:
+        scal = 0.5 * (1 + s/norm_v)
+        s = da.from_array(np.array([norm_v]), chunks=(1,))
+        projx = scal * da.hstack((s, v))
+    return projx
+
