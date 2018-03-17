@@ -8,7 +8,7 @@ import scs_dask.linalg.linear_operator as linop
 import scs_dask.linalg.atoms2 as atoms2
 
 
-def iter_options(graph_iters=1, verbose=0, print_iters=0, time_iters=0):
+def iter_options(graph_iters=1, verbose=0, print_iters=0, time_iters=0, **options):
     graph_iters = max(1, int(graph_iters))
     time_iters = max(0, int(time_iters))
     if int(print_iters) < 1 and verbose > 0:
@@ -264,7 +264,7 @@ def cg_graph(A, b, preconditioner=None, x_init=None, tol=1e-5, maxiter=500, **op
     dsks = [x.dask, r.dask, p.dask]
     dsks += [A.dask, dsk] if i == maxiter else []
     dsks += [M.dask] if (i == maxiter and M is not None) else []
-    x, _, _, res = cg_calcs(dask.sharedict.merge(*dsks), key1, finish=True)
+    x, _, _, res = cg_calcs(dask.sharedict.merge(*dsks), key1, finish=True, **options)
     return x, res, i
 
 def cgls(A, b, rho, **options):
