@@ -11,6 +11,7 @@ dispatch = functools.partial(multipledispatch.dispatch, namespace=namespace_cone
 CONE_TOL = 1e-8
 CONE_THRESH = 1e-6
 EXP_CONE_MAX_ITERS = 100
+POW_CONE_MAX_ITERS = 20
 
 class ConvexCone(object):
     def __init__(self, dimension):
@@ -330,3 +331,72 @@ def project_cone(K, x):
 def project_cone(K, x):
     assert x.size == 3 * K.dim, 'input dimension compatible'
     return da.map_blocks(proj_exp_dual_cone, x.rechunk(3)).rechunk(chunks=x.chunks)
+
+def v_in_Ka(v, a):
+    return (v[0] >= 0
+            and v[1] >= 0
+            and CONE_THRESH + v[0]**a * v[1]**(1-a) >= abs(v[2]))
+def negv_in_Ka_star(v, a):
+    return (v[0] <= 0
+            and v[1] <= 0
+            and CONE_THRESH + (-v[0])**a * (-v[1])**(1-a) >= abs(v[2]) * a**a * (1-a)**(1-a))
+
+def pow_calc_x(r, xh, rh, a):
+    return max(1e-12, 0.5 * (xh + np.sqrt(xh**2 + 4*a*(rh-r)*r)))
+def pow_calc_dxdr(x, xh, rh, r, a):
+    return a * (rh - 2*r) / (2*x - xh)
+def pow_calc_f(x, y, r, a):
+    return pow(x, a) * pow(y, (1-a)) - r
+def pow_calc_fp(x, y, dxdr, dydr, a):
+    return pow(x, a)*pow(y, (1-a))*(a*dxdr/x + (1-a)*dydr/y) - 1
+
+def proj_power(v, a):
+    assert len(v) == 3
+    v = np.array(v)
+    if v_in_Ka(v, a):
+        projv = v
+    elif negv_in_Ka_star(v, a):
+        projv = 0 * v
+    else:
+        xx, yy, rr = v[0], v[1], abs(v[2])
+        xi, yi, ri = 0., 0., rr/2
+        for i in range(POW_CONE_MAX_ITERS):
+            xi = pow_calc_x(ri, xx, rr, a)
+            yi = pow_calc_x(ri, yy, rr, 1-a)
+            fi = pow_calc_f(xi, yi, ri, a)
+            if abs(fi) < CONE_TOL:
+                break
+            dxdr = pow_calc_dxdr(xi, xx, rr, ri, a)
+            dydr = pow_calc_dxdr(yi, yy, rr, ri, 1-a)
+            fp = pow_calc_fp(xi, yi, dxdr, dydr, a)
+            ri = min(rr, max(ri - fi/fp, 0))
+        projv = np.array([xi, yi, -ri if v[2] < 0 else ri])
+    return projv
+
+def proj_power_dual(v, a):
+    v = np.array(v)
+    return v + proj_power(-v, a)
+
+def proj_pow_cone(v, a):
+    # a > 0: primal cone
+    # a <= 0: dual cone via Moreau decomposition x = prox_K(x) + prox_Kstar(-x)
+    return proj_power(v, a) if a > 0 else proj_power_dual(v, -a)
+
+# {(x,y,z) | x^a * y^(1-a) >= |z|, x>=0, y>=0}
+@dispatch(PowerCone, np.ndarray)
+def project_cone(K, x):
+    assert x.size == 3 * K.dim, 'input dimension compatible'
+    return np.hstack([proj_pow_cone(x[3*i:3*(i+1)], K.powers[i]) for i in range(K.dim)])
+
+@dispatch(PowerCone, da.Array)
+def project_cone(K, x):
+    assert x.shape[0] == x.size and x.size == 3 * K.dim, 'input dimension compatible'
+    x3 = x.rechunk(chunks=3)
+    dsk = dict()
+    token = 'project-power-cone-' + dask.base.tokenize(K, x)
+    for i in range(x3.numblocks[0]):
+        dsk[(token, i)] = (proj_pow_cone, (x3.name, i), K.powers[i])
+    projx = da.Array(
+            dask.sharedict.merge(dsk, x3.dask), token, shape=x.shape,
+            chunks=x3.chunks, dtype=x.dtype)
+    return projx.rechunk(chunks=x.chunks)
