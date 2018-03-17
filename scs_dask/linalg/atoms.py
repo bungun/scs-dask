@@ -8,82 +8,95 @@ import dask.array as da
 
 import scs_dask.linalg.linear_operator as linop
 
-namespace_linop_atoms = dict()
-dispatch = functools.partial(multipledispatch.dispatch, namespace=namespace_linop_atoms)
+namespace_atoms = dict()
+dispatch = functools.partial(multipledispatch.dispatch, namespace=namespace_atoms)
 
-@dispatch(da.Array, str, str)
-def graph_dot(array, input_key, output_key, transpose=False, **options):
-    r""" Build dask graph storing as output a linear operator applied to input.
+# @dispatch(da.Array, str, str)
+# def graph_dot(array, input_key, output_key, transpose=False, **options):
+#     r""" Build dask graph storing as output a linear operator applied to input.
 
-    Args:
-        array (:obj:`da.Array`): Matrix
-        input_key (:obj:`str`): Key, in some dask graph, of an input
-            vector assumed to be compatibly sized and chunked with
-            the array.
-        output_key (:obj:`str`): Key of an output vector.
-        transpose (:obj:`bool`, optional): If ``True``, form output as
-            :math:`w = A^Tz`; by default form :math:`y = Ax`.
+#     Args:
+#         array (:obj:`da.Array`): Matrix
+#         input_key (:obj:`str`): Key, in some dask graph, of an input
+#             vector assumed to be compatibly sized and chunked with
+#             the array.
+#         output_key (:obj:`str`): Key of an output vector.
+#         transpose (:obj:`bool`, optional): If ``True``, form output as
+#             :math:`w = A^Tz`; by default form :math:`y = Ax`.
 
-    Returns:
-        :obj:`dask.sharedict.Sharedict`: dask graph of matrix-vector
-        product assigned to output vector.
-    """
-    if transpose:
-        idx_out, idx_arr, idx_in = 'j', 'ji', 'i'
-        transform = da.transpose
-    else:
-        idx_out, idx_arr, idx_in = 'i', 'ij', 'j'
-        transform = None
-    blks_in = (array.numblocks[1 - int(transpose)],)
+#     Returns:
+#         :obj:`dask.sharedict.Sharedict`: dask graph of matrix-vector
+#         product assigned to output vector.
+#     """
+#     if transpose:
+#         idx_out, idx_arr, idx_in = 'j', 'ij', 'i'
+#         transform = da.transpose
+#     else:
+#         idx_out, idx_arr, idx_in = 'i', 'ij', 'j'
+#         transform = None
+#     blks_in = (array.numblocks[1 - int(transpose)],)
 
-    dsk_out = da.core.top(
-            da.core.dotmany,
-            output_key, idx_out,
-            array.name, idx_arr,
-            input_key, idx_in,
-            leftfunction=transform,
-            numblocks={array.name: array.numblocks, input_key: blks_in})
-    return dask.sharedict.merge(array.dask, (dsk_out, output_key))
+#     dsk_out = da.core.top(
+#             da.core.dotmany,
+#             output_key, idx_out,
+#             array.name, idx_arr,
+#             input_key, idx_in,
+#             leftfunc=transform,
+#             numblocks={array.name: array.numblocks, input_key: blks_in})
+#     dsk = dask.sharedict.merge(array.dask)
+#     dsk.update_with_key(dsk_out, output_key)
+#     return dsk
 
-@dispatch(linop.DLODense, str, str)
-def graph_dot(dense_op, input_key, output_key, transpose=False, **options):
-    """ Implementation of :func:`graph_dot` for a dense linear operator.
-    """
-    return graph_dot(dense_op.data, input_key, output_key, transpose=transpose)
+# @dispatch(linop.DLODense, str, str)
+# def graph_dot(dense_op, input_key, output_key, transpose=False, **options):
+#     """ Implementation of :func:`graph_dot` for a dense linear operator.
+#     """
+#     return graph_dot(dense_op.data, input_key, output_key, transpose=transpose)
 
-@dispatch(linop.DLODiagonal, str, str)
-def graph_dot(diag_op, input_key, output_key, **options):
-    """ Implementation of :func:`graph_dot` for a diagonal linear operator.
-    """
-    vec = diag_op.data
-    dsk_out = da.core.top(
-            operator.mul, output_key, 'i', vec.name, 'i', input_key, 'i',
-            numblocks={vec.name: vec.numblocks, input_key: vec.numblocks})
-    return dask.sharedict.merge(vec.dask, (dsk_out, output_key))
+# @dispatch(linop.DLODiagonal, str, str)
+# def graph_dot(diag_op, input_key, output_key, **options):
+#     """ Implementation of :func:`graph_dot` for a diagonal linear operator.
+#     """
+#     vec = diag_op.data
+#     dsk_out = da.core.top(
+#             operator.mul, output_key, 'i', vec.name, 'i', input_key, 'i',
+#             numblocks={vec.name: vec.numblocks, input_key: vec.numblocks})
+#     dsk = dask.sharedict.merge(diag_op.dask)
+#     dsk.update_with_key(dsk_out, output_key)
+#     return dsk
 
-@dispatch(linop.DLOGram, str, str)
-def graph_dot(gram_op, input_key, output_key, **options):
-    """ Implementation of :func:`graph_dot` for a dense linear operator.
-    """
-    mid_key = gram_op.name + '-gramA-' + input_key
-    dsk_Ax = graph_dot(
-            gram_op.data, input_key, mid_key, transpose=gram_op.transpose)
-    dsk_AAx = graph_dot(
-            gram_op.data, mid_key, output_key, transpose=(not gram_op.transpose))
-    return dask.sharedict.merge(dsk_Ax, dsk_AAx)
+# @dispatch(linop.DLOGram, str, str)
+# def graph_dot(gram_op, input_key, output_key, **options):
+#     """ Implementation of :func:`graph_dot` for a gram operator.
+#     """
+#     mid_key = gram_op.name + '-gramA-' + input_key
+#     dsk_Ax = graph_dot(
+#             gram_op.data, input_key, mid_key, transpose=gram_op.transpose)
+#     dsk_AAx = graph_dot(
+#             gram_op.data, mid_key, output_key, transpose=(not gram_op.transpose))
+#     return dask.sharedict.merge(dsk_Ax, dsk_AAx)
 
-@dispatch(linop.DLORegularizedGram, str, str)
-def graph_dot(gram_op, input_key, output_key, **options):
-    """ Implementation of :func:`graph_dot` for a dense linear operator.
-    """
-    mid_key = gram_op.name + '-gramAA-' + input_key
-    dsk_AAx = graph_dot(gram_op.data, input_key, mid_key)
-    def add_regularization(AAx): return AAx + gram_op.regularization
-    dsk_IAAx = da.core.top(
-            add_regularization, output_key, 'i', mid_key, 'i',
-            numblocks={mid_key: (gram_op.numblocks[0],)})
-    return dask.sharedict.merge(dsk_AAx, (dsk_IAAx, output_key))
+# @dispatch(linop.DLORegularizedGram, str, str)
+# def graph_dot(gram_op, input_key, output_key, **options):
+#     """ Implementation of :func:`graph_dot` for a regularized operator.
+#     """
+#     mid_key = gram_op.name + '-gramAA-' + input_key
+#     blocks = (gram_op.numblocks[0],)
+#     def wrap_gram(data):
+#         return data if isinstance(data, linop.DLOGram) else linop.DLOGram(data)
+#     def add_regularization(AAxi, xi):
+#         return AAxi + gram_op.regularization * xi
 
+#     dsk_AAx = graph_dot(wrap_gram(gram_op.data), input_key, mid_key)
+#     dsk_IAAx = da.core.top(
+#             add_regularization, output_key, 'i', mid_key, 'i', input_key, 'i',
+#             numblocks={mid_key: blocks, input_key: blocks})
+#     dsk = dask.sharedict.merge(dsk_AAx)
+#     dsk.update_with_key(dsk_IAAx, output_key)
+#     return dsk
+
+
+#########
 
 # @dispatch(da.Array, da.Array, da.Array)
 # @dispatch(linop.DLODense, da.Array, da.Array)
@@ -227,4 +240,21 @@ def diag_gram(array, transpose=False, regularization=0, diag_index=0):
     # rechunk
     diagg.rechunk(chunks_gram[0])
     return diagg
+
+@dispatch(linop.DLODense)
+def diag_gram(linear_op, transpose=False, regularization=0, diag_index=0):
+    return diag_gram(
+            linear_op.data, transpose=transpose, regularization=regularization,
+            diag_index=diag_index)
+
+@dispatch(linop.DLOGram)
+def diag_gram(linear_op, **options):
+    return diag_gram(
+            linear_op.data, transpose=linear_op.transpose, **options)
+
+@dispatch(linop.DLORegularizedGram)
+def diag_gram(linear_op, **options):
+    return diag_gram(
+            linear_op.data, regularization=linear_op.regularization, **options)
+
 
