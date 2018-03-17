@@ -117,3 +117,15 @@ def project_cone(K, x):
         projx = scal * da.hstack((s, v))
     return projx
 
+@dispatch(PositiveSemidefiniteCone, np.ndarray)
+def project_cone(K, x):
+    L, Q = np.linalg.eigh(np.reshape(x, (K.dim, K.dim)))
+    return (Q.dot(np.maximum(0, L).reshape(-1, 1) * Q.T)).reshape(-1)
+
+@dispatch(PositiveSemidefiniteCone, da.Array)
+def project_cone(K, x):
+    assert x.size == K.dim**2, 'input dimension compatible'
+    chunks = x[:K.dim].chunks[0]
+    X = da.reshape(x, (K.dim, K.dim)).rechunk((chunks, (K.dim,)))
+    U, S, V = da.linalg.svd(da.reshape(x, (K.dim, K.dim)))
+    return U.dot(da.maximum(0, S).reshape(-1, 1) * V).reshape(-1)
