@@ -81,3 +81,12 @@ def project_cone(K, x):
 @dispatch(ZeroDualCone, (np.ndarray, da.Array))
 def project_cone(K, x):
     return 1 * x
+
+@dispatch(NonnegativeCone, np.ndarray)
+def project_cone(K, x):
+    return np.maximum(x, 0)
+
+@dispatch(NonnegativeCone, da.Array)
+def project_cone(K, x):
+    return da.maximum(x, 0)
+
